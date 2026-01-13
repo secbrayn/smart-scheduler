@@ -1,0 +1,1645 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Resource Scheduler</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FullCalendar CSS & JS -->
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css' rel='stylesheet' />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    
+    <style>
+        * { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+        .card-hover { transition: all 0.2s ease; }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(0,0,0,0.08); }
+        .kpi-card { min-height: 140px; }
+        
+        /* Loading Animation */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        
+        /* Suggestion Cards Animation */
+        .suggestion-card {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* FullCalendar Custom Styles - Google Calendar Look */
+        #calendar {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+        
+        .fc {
+            /* Google Calendar style */
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        }
+        
+        .fc .fc-toolbar-title {
+            font-size: 22px;
+            font-weight: 400;
+            color: #202124;
+        }
+        
+        .fc .fc-button {
+            background-color: white;
+            color: #5f6368;
+            border: 1px solid #dadce0;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 4px;
+            text-transform: none;
+        }
+        
+        .fc .fc-button:hover {
+            background-color: #f8f9fa;
+            border-color: #dadce0;
+        }
+        
+        .fc .fc-button-primary:not(:disabled).fc-button-active {
+            background-color: #e8f0fe;
+            color: #1967d2;
+            border-color: #e8f0fe;
+        }
+        
+        .fc .fc-button:focus {
+            box-shadow: none;
+        }
+        
+        .fc-theme-standard td, .fc-theme-standard th {
+            border-color: #e0e0e0;
+        }
+        
+        .fc .fc-daygrid-day-number {
+            color: #3c4043;
+            font-size: 12px;
+            padding: 4px;
+        }
+        
+        .fc .fc-col-header-cell-cushion {
+            color: #70757a;
+            font-weight: 500;
+            font-size: 11px;
+            text-transform: uppercase;
+            padding: 8px 0;
+        }
+        
+        .fc .fc-daygrid-day.fc-day-today {
+            background-color: #e8f0fe !important;
+        }
+        
+        .fc-event {
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 12px;
+            margin-bottom: 2px;
+            cursor: pointer;
+        }
+        
+        .fc-event:hover {
+            opacity: 0.9;
+        }
+        
+        /* Employee colors für Kalender Events */
+        .fc-event.event-max { 
+            background-color: #bbf7d0; 
+            color: #14532d;
+            border-left: 3px solid #22c55e;
+        }
+        .fc-event.event-lisa { 
+            background-color: #fef08a; 
+            color: #713f12;
+            border-left: 3px solid #eab308;
+        }
+        .fc-event.event-tom { 
+            background-color: #bfdbfe; 
+            color: #1e3a8a;
+            border-left: 3px solid #3b82f6;
+        }
+        
+        /* Calendar Header Toolbar */
+        .fc .fc-toolbar {
+            padding: 20px 0;
+        }
+        
+        /* Calendar Grid */
+        .fc .fc-scrollgrid {
+            border-color: #e0e0e0;
+        }
+        
+        /* Week numbers */
+        .fc .fc-daygrid-week-number {
+            background-color: #f8f9fa;
+            color: #70757a;
+        }
+        
+        /* Event time */
+        .fc-event-time {
+            font-weight: 600;
+        }
+        
+        /* Event title */
+        .fc-event-title {
+            font-weight: 500;
+        }
+        
+        /* Calendar Gantt Chart */
+        .gantt-row { 
+            display: grid; 
+            grid-template-columns: 150px 1fr; 
+            border-bottom: 1px solid #e5e7eb;
+            min-height: 60px;
+            align-items: center;
+        }
+        .gantt-bar {
+            height: 40px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+        }
+        .gantt-bar:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .gantt-timeline {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 1px;
+            background: #f3f4f6;
+            padding: 0;
+        }
+        .timeline-cell {
+            background: white;
+            padding: 8px;
+            text-align: center;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        /* Employee colors */
+        .employee-lisa { background: #fef08a; color: #713f12; border: 2px solid #eab308; }
+        .employee-tom { background: #bfdbfe; color: #1e3a8a; border: 2px solid #3b82f6; }
+        .employee-max { background: #bbf7d0; color: #14532d; border: 2px solid #22c55e; }
+        
+        .employee-legend-lisa { background: #fef08a; border: 2px solid #eab308; }
+        .employee-legend-tom { background: #bfdbfe; border: 2px solid #3b82f6; }
+        .employee-legend-max { background: #bbf7d0; border: 2px solid #22c55e; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    
+    <!-- Sidebar -->
+    <div class="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200">
+        <div class="p-6">
+            <h1 class="text-xl font-semibold text-gray-900">Resource Scheduler</h1>
+            <p class="text-xs text-gray-500 mt-1">Smart Optimization</p>
+        </div>
+        
+        <nav class="px-3">
+            <a href="#" onclick="showView('dashboard')" id="nav-dashboard" class="nav-item active flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-900 bg-gray-100 mb-1">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                </svg>
+                Dashboard
+            </a>
+            <a href="#" onclick="showView('projects')" id="nav-projects" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 mb-1">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                </svg>
+                Projekte
+            </a>
+            <a href="#" onclick="showView('calendar')" id="nav-calendar" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 mb-1">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                Kalender
+            </a>
+            <a href="#" onclick="showView('team')" id="nav-team" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                </svg>
+                Team
+            </a>
+        </nav>
+
+        <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
+            <div class="text-xs text-gray-500">
+                <p class="font-medium text-gray-700 mb-1">Demo Version</p>
+                <p>Custom Automation</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="ml-64 p-8">
+        
+        <!-- Dashboard View -->
+        <div id="view-dashboard" class="view">
+            <div class="mb-8">
+                <h2 class="text-2xl font-semibold text-gray-900">Dashboard</h2>
+                <p class="text-sm text-gray-500 mt-1">Übersicht über Optimierungen und Performance</p>
+            </div>
+
+            <!-- KPI Grid -->
+            <div class="grid grid-cols-4 gap-6 mb-8">
+                <div class="bg-white border border-gray-200 rounded-lg p-6 card-hover kpi-card flex flex-col justify-between">
+                    <p class="text-sm text-gray-500">Gespartes Geld</p>
+                    <div>
+                        <p id="kpi-savings" class="text-3xl font-semibold text-gray-900">6.000€</p>
+                        <p class="text-xs text-gray-500 mt-2">pro Monat</p>
+                    </div>
+                </div>
+                <div class="bg-white border border-gray-200 rounded-lg p-6 card-hover kpi-card flex flex-col justify-between">
+                    <p class="text-sm text-gray-500">Zeit gespart</p>
+                    <div>
+                        <p id="kpi-time" class="text-3xl font-semibold text-gray-900">32h</p>
+                        <p class="text-xs text-gray-500 mt-2">pro Monat</p>
+                    </div>
+                </div>
+                <div class="bg-white border border-gray-200 rounded-lg p-6 card-hover kpi-card flex flex-col justify-between">
+                    <p class="text-sm text-gray-500">Match-Score</p>
+                    <div>
+                        <p id="kpi-score" class="text-3xl font-semibold text-gray-900">89%</p>
+                        <p class="text-xs text-gray-500 mt-2">Durchschnitt</p>
+                    </div>
+                </div>
+                <div class="bg-white border border-gray-200 rounded-lg p-6 card-hover kpi-card flex flex-col justify-between">
+                    <p class="text-sm text-gray-500">Effizienz</p>
+                    <div>
+                        <p class="text-3xl font-semibold text-gray-900">+15%</p>
+                        <p class="text-xs text-gray-500 mt-2">Steigerung</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Optimierung Button -->
+            <div class="mb-8">
+                <button onclick="startOptimization()" id="optimize-btn-main" class="w-full bg-gray-900 hover:bg-gray-800 text-white font-medium py-4 px-6 rounded-lg transition-all flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    Optimierung für alle Projekte durchführen
+                </button>
+            </div>
+
+            <!-- Projekte Overview -->
+            <div class="mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Aktive Projekte</h3>
+                    <button onclick="showView('projects')" class="text-sm text-gray-600 hover:text-gray-900">Alle anzeigen →</button>
+                </div>
+                
+                <div class="space-y-3" id="active-projects-list">
+                    <div class="text-center p-8 text-gray-500">
+                        <div class="animate-spin h-8 w-8 border-4 border-gray-200 border-t-gray-900 rounded-full mx-auto mb-4"></div>
+                        <p class="text-sm">Projekte werden geladen...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Abgeschlossene Projekte -->
+            <div class="mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Abgeschlossene Projekte</h3>
+                    <span class="text-sm text-gray-500">3 Projekte</span>
+                </div>
+                
+                <div class="space-y-3">
+                    <div class="bg-white border border-gray-200 rounded-lg p-5">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <h4 class="font-medium text-gray-900">Mobile App Redesign</h4>
+                                <p class="text-sm text-gray-500 mt-1">Flutter-basiert, 50 Stunden</p>
+                            </div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-100">
+                                Abgeschlossen
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-4 mt-4 text-xs">
+                            <span class="text-gray-500">Tom Weber</span>
+                            <span class="text-gray-400">•</span>
+                            <span class="text-gray-500">Match: 88%</span>
+                            <span class="text-gray-400">•</span>
+                            <span class="text-green-600 font-medium">2.400€ gespart</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-5">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <h4 class="font-medium text-gray-900">Dashboard Analytics</h4>
+                                <p class="text-sm text-gray-500 mt-1">React + Python, 35 Stunden</p>
+                            </div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-100">
+                                Abgeschlossen
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-4 mt-4 text-xs">
+                            <span class="text-gray-500">Lisa Schmidt</span>
+                            <span class="text-gray-400">•</span>
+                            <span class="text-gray-500">Match: 92%</span>
+                            <span class="text-gray-400">•</span>
+                            <span class="text-green-600 font-medium">1.800€ gespart</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-5">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <h4 class="font-medium text-gray-900">Automation Script Suite</h4>
+                                <p class="text-sm text-gray-500 mt-1">Python-heavy, 25 Stunden</p>
+                            </div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-100">
+                                Abgeschlossen
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-4 mt-4 text-xs">
+                            <span class="text-gray-500">Lisa Schmidt</span>
+                            <span class="text-gray-400">•</span>
+                            <span class="text-gray-500">Match: 96%</span>
+                            <span class="text-gray-400">•</span>
+                            <span class="text-green-600 font-medium">1.800€ gespart</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Optimierungs-Insights (hidden until optimization) -->
+            <div id="optimization-insights" class="mb-8 hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Optimierungs-Insights</h3>
+                    <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">Neu entdeckt</span>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4" id="insights-content">
+                    <!-- Will be populated after optimization -->
+                </div>
+            </div>
+
+            <!-- Team Overview -->
+            <div>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Team</h3>
+                    <button onclick="showView('team')" class="text-sm text-gray-600 hover:text-gray-900">Alle anzeigen →</button>
+                </div>
+                
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="bg-white border border-gray-200 rounded-lg p-5 card-hover">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium text-gray-700">MM</div>
+                            <div>
+                                <h4 class="font-medium text-gray-900 text-sm">Max Müller</h4>
+                                <p class="text-xs text-gray-500">20h verfügbar</p>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-gray-500">React</span>
+                                    <span class="text-gray-700 font-medium">8/10</span>
+                                </div>
+                                <div class="w-full bg-gray-100 rounded-full h-1.5">
+                                    <div class="bg-gray-900 h-1.5 rounded-full" style="width: 80%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-gray-500">Python</span>
+                                    <span class="text-gray-700 font-medium">5/10</span>
+                                </div>
+                                <div class="w-full bg-gray-100 rounded-full h-1.5">
+                                    <div class="bg-gray-900 h-1.5 rounded-full" style="width: 50%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-5 card-hover">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium text-gray-700">LS</div>
+                            <div>
+                                <h4 class="font-medium text-gray-900 text-sm">Lisa Schmidt</h4>
+                                <p class="text-xs text-gray-500">40h verfügbar</p>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-gray-500">React</span>
+                                    <span class="text-gray-700 font-medium">6/10</span>
+                                </div>
+                                <div class="w-full bg-gray-100 rounded-full h-1.5">
+                                    <div class="bg-gray-900 h-1.5 rounded-full" style="width: 60%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-gray-500">Python</span>
+                                    <span class="text-gray-700 font-medium">9/10</span>
+                                </div>
+                                <div class="w-full bg-gray-100 rounded-full h-1.5">
+                                    <div class="bg-gray-900 h-1.5 rounded-full" style="width: 90%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-5 card-hover">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium text-gray-700">TW</div>
+                            <div>
+                                <h4 class="font-medium text-gray-900 text-sm">Tom Weber</h4>
+                                <p class="text-xs text-gray-500">30h verfügbar</p>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-gray-500">React</span>
+                                    <span class="text-gray-700 font-medium">7/10</span>
+                                </div>
+                                <div class="w-full bg-gray-100 rounded-full h-1.5">
+                                    <div class="bg-gray-900 h-1.5 rounded-full" style="width: 70%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-gray-500">Python</span>
+                                    <span class="text-gray-700 font-medium">7/10</span>
+                                </div>
+                                <div class="w-full bg-gray-100 rounded-full h-1.5">
+                                    <div class="bg-gray-900 h-1.5 rounded-full" style="width: 70%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calendar View - REDESIGNED -->
+        <div id="view-calendar" class="view hidden">
+            <div class="mb-6">
+                <h2 class="text-2xl font-semibold text-gray-900">Kalender & Zeitplanung</h2>
+                <p class="text-sm text-gray-500 mt-1">Intelligente Ressourcenplanung basierend auf Skills, Verfügbarkeit und Prioritäten</p>
+            </div>
+
+            <!-- Main Calendar -->
+            <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-6">
+                <div id="calendar"></div>
+            </div>
+
+            <!-- Bottom Section: Employee Legend & Planning Rationale -->
+            <div class="grid grid-cols-3 gap-6">
+                <!-- Employee Legend -->
+                <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
+                    <h3 class="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                        </svg>
+                        Team Mitglieder
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg employee-legend-max flex items-center justify-center text-xs font-bold text-green-900">MM</div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-900">Max Müller</p>
+                                <p class="text-xs text-gray-500">Frontend Dev</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg employee-legend-lisa flex items-center justify-center text-xs font-bold text-yellow-900">LS</div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-900">Lisa Schmidt</p>
+                                <p class="text-xs text-gray-500">Backend Dev</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg employee-legend-tom flex items-center justify-center text-xs font-bold text-blue-900">TW</div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-900">Tom Weber</p>
+                                <p class="text-xs text-gray-500">Full-Stack Dev</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Planning Rationale - Takes 2 columns -->
+                <div class="col-span-2 bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+                    <div class="flex items-center gap-2 mb-4">
+                        <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <h3 class="text-sm font-semibold text-gray-900">Planungs-Begründung</h3>
+                    </div>
+                    
+                    <div id="planning-rationale" class="space-y-4 text-sm text-gray-700">
+                        <!-- Will be populated dynamically -->
+                        <p class="text-gray-500 italic">Führen Sie eine Optimierung durch, um die Planungs-Begründungen zu sehen.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Projects View -->
+        <div id="view-projects" class="view hidden">
+            <div class="mb-8">
+                <h2 class="text-2xl font-semibold text-gray-900">Projekte</h2>
+                <p class="text-sm text-gray-500 mt-1">Alle aktiven Projekte und deren Status</p>
+            </div>
+
+            <div class="space-y-4" id="projects-list">
+                <div class="text-center p-8 text-gray-500">
+                    <p class="text-sm">Projekte werden geladen...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Team View -->
+        <div id="view-team" class="view hidden">
+            <div class="mb-8">
+                <h2 class="text-2xl font-semibold text-gray-900">Team</h2>
+                <p class="text-sm text-gray-500 mt-1">Übersicht aller Mitarbeiter und deren Skills</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6">
+                <div class="bg-white border border-gray-200 rounded-lg p-6">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-lg font-medium text-gray-700">MM</div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">Max Müller</h3>
+                            <p class="text-sm text-gray-500">Frontend Developer</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4 mb-6">
+                        <div>
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="text-gray-600">React</span>
+                                <span class="font-semibold text-gray-900">8/10</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="bg-gray-900 h-2 rounded-full" style="width: 80%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="text-gray-600">Python</span>
+                                <span class="font-semibold text-gray-900">5/10</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="bg-gray-900 h-2 rounded-full" style="width: 50%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-gray-200">
+                        <p class="text-sm text-gray-600">Verfügbarkeit: <span class="font-medium text-gray-900">20h/Woche</span></p>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-gray-200 rounded-lg p-6">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-lg font-medium text-gray-700">LS</div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">Lisa Schmidt</h3>
+                            <p class="text-sm text-gray-500">Backend Developer</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4 mb-6">
+                        <div>
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="text-gray-600">React</span>
+                                <span class="font-semibold text-gray-900">6/10</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="bg-gray-900 h-2 rounded-full" style="width: 60%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="text-gray-600">Python</span>
+                                <span class="font-semibold text-gray-900">9/10</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="bg-gray-900 h-2 rounded-full" style="width: 90%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-gray-200">
+                        <p class="text-sm text-gray-600">Verfügbarkeit: <span class="font-medium text-gray-900">40h/Woche</span></p>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-gray-200 rounded-lg p-6">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-lg font-medium text-gray-700">TW</div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">Tom Weber</h3>
+                            <p class="text-sm text-gray-500">Full-Stack Developer</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4 mb-6">
+                        <div>
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="text-gray-600">React</span>
+                                <span class="font-semibold text-gray-900">7/10</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="bg-gray-900 h-2 rounded-full" style="width: 70%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="text-gray-600">Python</span>
+                                <span class="font-semibold text-gray-900">7/10</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="bg-gray-900 h-2 rounded-full" style="width: 70%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-gray-200">
+                        <p class="text-sm text-gray-600">Verfügbarkeit: <span class="font-medium text-gray-900">30h/Woche</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Selection Modal - LESS COLORFUL -->
+    <div id="selection-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b border-gray-200">
+                <h3 class="text-xl font-semibold text-gray-900">Mitarbeiter-Zuteilung</h3>
+                <p class="text-sm text-gray-500 mt-1">Wählen Sie für jedes Projekt den gewünschten Mitarbeiter aus</p>
+            </div>
+
+            <div class="p-6" id="selection-content"></div>
+
+            <div class="p-6 border-t border-gray-200 flex justify-end gap-3">
+                <button onclick="proceedToCalendar()" class="px-6 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 rounded-lg">
+                    Weiter zum Kalender →
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar Confirmation Modal - LESS COLORFUL -->
+    <div id="calendar-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-2xl max-w-5xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b border-gray-200">
+                <h3 class="text-xl font-semibold text-gray-900">Zeitplanung</h3>
+                <p class="text-sm text-gray-500 mt-1">Überprüfen Sie den vorgeschlagenen Zeitplan</p>
+            </div>
+
+            <div class="p-6" id="calendar-preview-content"></div>
+
+            <div class="p-6 border-t border-gray-200 flex justify-end gap-3">
+                <button onclick="closeCalendarModal()" class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 border border-gray-300 rounded-lg">
+                    Zurück
+                </button>
+                <button onclick="confirmCalendar()" class="px-6 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 rounded-lg">
+                    Planung bestätigen
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal - Simple -->
+    <div id="loading-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl p-8 shadow-2xl">
+            <div class="text-center">
+                <!-- Simple Spinner -->
+                <div class="w-16 h-16 border-4 border-gray-200 rounded-full border-t-blue-600 animate-spin mx-auto mb-4"></div>
+                <p class="text-sm text-gray-600">Optimierung läuft...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let totalSavings = 6000;
+        let totalTime = 32;
+        let avgMatchScore = 89;
+        let optimizedProjects = 0;
+        let optimizationResults = null;
+        let userSelections = {};
+        let calendarSchedule = [];
+
+        const EMPLOYEE_COLORS = {
+            'Lisa Schmidt': 'employee-lisa',
+            'Tom Weber': 'employee-tom',
+            'Max Müller': 'employee-max'
+        };
+
+        // Load projects and initialize calendar
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProjects();
+            initializeCompletedProjects();
+        });
+
+        function initializeCompletedProjects() {
+            const today = new Date();
+            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            
+            // Create realistic project timeline for the entire month
+            calendarSchedule = [
+                // === COMPLETED PROJECTS (Past) ===
+                {
+                    projectName: 'Mobile App Redesign ✓',
+                    employeeName: 'Tom Weber',
+                    startDate: new Date(today.getFullYear(), today.getMonth() - 1, 18),
+                    endDate: new Date(today.getFullYear(), today.getMonth(), 4),
+                    hoursPerWeek: 30,
+                    totalHours: 60,
+                    weeks: 2,
+                    completed: true,
+                    description: '9:00-17:00 • UI/UX Überarbeitung'
+                },
+                {
+                    projectName: 'Dashboard Analytics ✓',
+                    employeeName: 'Lisa Schmidt',
+                    startDate: new Date(today.getFullYear(), today.getMonth() - 1, 25),
+                    endDate: new Date(today.getFullYear(), today.getMonth(), 8),
+                    hoursPerWeek: 40,
+                    totalHours: 80,
+                    weeks: 2,
+                    completed: true,
+                    description: '9:00-18:00 • Backend API + Datenbank'
+                },
+                {
+                    projectName: 'Automation Scripts ✓',
+                    employeeName: 'Lisa Schmidt',
+                    startDate: new Date(today.getFullYear(), today.getMonth(), 9),
+                    endDate: new Date(today.getFullYear(), today.getMonth(), 12),
+                    hoursPerWeek: 20,
+                    totalHours: 20,
+                    weeks: 1,
+                    completed: true,
+                    description: '14:00-18:00 • Python Automatisierung'
+                },
+                
+                // === ONGOING PROJECTS (Current) ===
+                {
+                    projectName: 'Client Portal Development',
+                    employeeName: 'Max Müller',
+                    startDate: new Date(today.getFullYear(), today.getMonth(), 6),
+                    endDate: new Date(today.getFullYear(), today.getMonth(), 20),
+                    hoursPerWeek: 20,
+                    totalHours: 40,
+                    weeks: 2,
+                    completed: false,
+                    description: '9:00-13:00 • React Frontend'
+                },
+                {
+                    projectName: 'Database Migration',
+                    employeeName: 'Lisa Schmidt',
+                    startDate: new Date(today.getFullYear(), today.getMonth(), 13),
+                    endDate: new Date(today.getFullYear(), today.getMonth(), 24),
+                    hoursPerWeek: 25,
+                    totalHours: 50,
+                    weeks: 2,
+                    completed: false,
+                    description: '9:00-14:00 • PostgreSQL zu MongoDB'
+                },
+                {
+                    projectName: 'API Security Audit',
+                    employeeName: 'Tom Weber',
+                    startDate: new Date(today.getFullYear(), today.getMonth(), 5),
+                    endDate: new Date(today.getFullYear(), today.getMonth(), 15),
+                    hoursPerWeek: 15,
+                    totalHours: 30,
+                    weeks: 2,
+                    completed: false,
+                    description: '14:00-17:00 • Security Review'
+                },
+                
+                // === PLANNED MAINTENANCE & MEETINGS ===
+                {
+                    projectName: 'Team Planning Meeting',
+                    employeeName: 'Max Müller',
+                    startDate: new Date(today.getFullYear(), today.getMonth(), 3),
+                    endDate: new Date(today.getFullYear(), today.getMonth(), 3),
+                    hoursPerWeek: 2,
+                    totalHours: 2,
+                    weeks: 1,
+                    completed: true,
+                    description: '10:00-12:00 • Sprint Planning'
+                },
+                {
+                    projectName: 'Team Planning Meeting',
+                    employeeName: 'Lisa Schmidt',
+                    startDate: new Date(today.getFullYear(), today.getMonth(), 3),
+                    endDate: new Date(today.getFullYear(), today.getMonth(), 3),
+                    hoursPerWeek: 2,
+                    totalHours: 2,
+                    weeks: 1,
+                    completed: true,
+                    description: '10:00-12:00 • Sprint Planning'
+                },
+                {
+                    projectName: 'Team Planning Meeting',
+                    employeeName: 'Tom Weber',
+                    startDate: new Date(today.getFullYear(), today.getMonth(), 3),
+                    endDate: new Date(today.getFullYear(), today.getMonth(), 3),
+                    hoursPerWeek: 2,
+                    totalHours: 2,
+                    weeks: 1,
+                    completed: true,
+                    description: '10:00-12:00 • Sprint Planning'
+                },
+                {
+                    projectName: 'Code Review Session',
+                    employeeName: 'Tom Weber',
+                    startDate: new Date(today.getFullYear(), today.getMonth(), 16),
+                    endDate: new Date(today.getFullYear(), today.getMonth(), 16),
+                    hoursPerWeek: 3,
+                    totalHours: 3,
+                    weeks: 1,
+                    completed: false,
+                    description: '14:00-17:00 • Peer Review'
+                },
+                {
+                    projectName: 'System Maintenance',
+                    employeeName: 'Lisa Schmidt',
+                    startDate: new Date(today.getFullYear(), today.getMonth(), 25),
+                    endDate: new Date(today.getFullYear(), today.getMonth(), 26),
+                    hoursPerWeek: 16,
+                    totalHours: 16,
+                    weeks: 1,
+                    completed: false,
+                    description: '9:00-17:00 • Server Updates'
+                }
+            ];
+
+            initializeCalendar();
+        }
+
+        async function loadProjects() {
+            try {
+                const response = await fetch('/api/calculate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    optimizationResults = data.results;
+                    displayUnassignedProjects(data.results);
+                    displayProjectsList(data.results, false);
+                }
+            } catch (error) {
+                console.error('Error loading projects:', error);
+            }
+        }
+
+        function displayUnassignedProjects(results) {
+            const container = document.getElementById('active-projects-list');
+            container.innerHTML = '';
+
+            results.forEach((result) => {
+                const projectCard = `
+                    <div class="bg-white border border-gray-200 rounded-lg p-5">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <h4 class="font-medium text-gray-900">${result.project_name}</h4>
+                                <p class="text-sm text-gray-500 mt-1">React: ${result.react_needed || 'N/A'}, Python: ${result.python_needed || 'N/A'} • ${result.hours_needed || 'N/A'}h • Priorität: ${result.priority}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 mt-4 text-xs">
+                            <span class="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-700 border border-gray-200">
+                                Nicht zugeteilt
+                            </span>
+                        </div>
+                    </div>
+                `;
+                
+                container.innerHTML += projectCard;
+            });
+        }
+
+        function displayProjectsList(results, assigned) {
+            const container = document.getElementById('projects-list');
+            container.innerHTML = '';
+
+            results.forEach((result, index) => {
+                let statusHTML = '<p class="text-sm font-semibold text-gray-600">Nicht zugeteilt</p>';
+                
+                if (assigned && userSelections[index]) {
+                    const employee = userSelections[index];
+                    statusHTML = `<p class="text-sm font-semibold text-gray-900">✓ ${employee.name} (${employee.score}%)</p>`;
+                }
+
+                const projectCard = `
+                    <div class="bg-white border border-gray-200 rounded-lg p-6">
+                        <div class="flex items-start justify-between mb-4">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900">${result.project_name}</h3>
+                                <p class="text-sm text-gray-500 mt-1">${result.hours_needed || 'N/A'} Stunden • Priorität: ${result.priority}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-3 gap-6">
+                            <div>
+                                <p class="text-xs text-gray-500 mb-1">Status</p>
+                                ${statusHTML}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                container.innerHTML += projectCard;
+            });
+        }
+
+        function showView(viewName) {
+            document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+            document.getElementById(`view-${viewName}`).classList.remove('hidden');
+            
+            document.querySelectorAll('.nav-item').forEach(n => {
+                n.classList.remove('active', 'bg-gray-100', 'text-gray-900');
+                n.classList.add('text-gray-600');
+            });
+            document.getElementById(`nav-${viewName}`).classList.add('active', 'bg-gray-100', 'text-gray-900');
+            document.getElementById(`nav-${viewName}`).classList.remove('text-gray-600');
+            
+            // Initialize calendar when calendar view is shown
+            if (viewName === 'calendar') {
+                setTimeout(() => initializeCalendar(), 100);
+            }
+        }
+
+        async function startOptimization() {
+            if (!optimizationResults) {
+                alert('Projekte werden noch geladen...');
+                return;
+            }
+
+            // Show loading modal
+            const loadingModal = document.getElementById('loading-modal');
+            loadingModal.classList.remove('hidden');
+            
+            // Simulate AI thinking process
+            await simulateAIProcessing();
+            
+            // Hide loading modal
+            loadingModal.classList.add('hidden');
+            
+            // Show results
+            displaySelectionModal(optimizationResults);
+        }
+        
+        async function simulateAIProcessing() {
+            // Simple loading delay
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
+        function displaySelectionModal(results) {
+            const content = document.getElementById('selection-content');
+            content.innerHTML = '';
+
+            results.forEach((result, index) => {
+                let projectHTML = `
+                    <div class="mb-6 pb-6 border-b border-gray-200 last:border-0">
+                        <h4 class="font-semibold text-gray-900 mb-1">${result.project_name}</h4>
+                        <p class="text-sm text-gray-500 mb-4">${result.hours_needed || 'N/A'}h • ${result.priority} Priorität</p>
+                        
+                        <div class="space-y-2">
+                `;
+
+                result.all_matches.forEach((match, matchIdx) => {
+                    const isRecommended = matchIdx === 0;
+                    const borderColor = isRecommended ? 'border-gray-400' : 'border-gray-200';
+                    const bgColor = isRecommended ? 'bg-gray-50' : 'bg-white';
+                    
+                    projectHTML += `
+                        <label class="flex items-center justify-between p-3 border-2 ${bgColor} ${borderColor} rounded-lg cursor-pointer hover:border-gray-400 transition-all">
+                            <div class="flex items-center gap-3">
+                                <input type="radio" name="project-${index}" value="${matchIdx}" 
+                                    ${isRecommended ? 'checked' : ''} 
+                                    onchange="selectEmployee(${index}, ${matchIdx}, '${match.employee_name}', ${match.score})"
+                                    class="w-4 h-4 text-gray-900">
+                                <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-700">
+                                    ${match.employee_name.split(' ').map(n => n[0]).join('')}
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-900">${match.employee_name} ${isRecommended ? '⭐' : ''}</p>
+                                    <p class="text-xs text-gray-500">${match.skill_details.react} React, ${match.skill_details.python} Python • ${match.skill_details.hours} verfügbar</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-lg font-semibold text-gray-900">${match.score}%</p>
+                                ${isRecommended ? '<p class="text-xs text-gray-600 font-medium">Empfohlen</p>' : ''}
+                            </div>
+                        </label>
+                    `;
+                });
+
+                projectHTML += `</div></div>`;
+                content.innerHTML += projectHTML;
+
+                if (!userSelections[index]) {
+                    selectEmployee(index, 0, result.best_match.employee_name, result.best_match.score);
+                }
+            });
+
+            document.getElementById('selection-modal').classList.remove('hidden');
+        }
+
+        function selectEmployee(projectIndex, matchIndex, employeeName, score) {
+            userSelections[projectIndex] = {
+                name: employeeName,
+                score: score,
+                project: optimizationResults[projectIndex]
+            };
+        }
+
+        function proceedToCalendar() {
+            document.getElementById('selection-modal').classList.add('hidden');
+            
+            const modal = document.getElementById('calendar-modal');
+            const content = document.getElementById('calendar-preview-content');
+            content.innerHTML = `
+                <div class="text-center py-12">
+                    <div class="animate-spin h-12 w-12 border-4 border-gray-200 border-t-gray-900 rounded-full mx-auto mb-4"></div>
+                    <p class="text-lg font-semibold text-gray-900">Zeitplanung wird berechnet...</p>
+                    <p class="text-sm text-gray-500 mt-2">Optimaler Zeitplan wird erstellt</p>
+                </div>
+            `;
+            modal.classList.remove('hidden');
+
+            setTimeout(() => {
+                calculateNewProjects();
+                displayCalendarPreview();
+            }, 2000);
+        }
+
+        function calculateNewProjects() {
+            const priorityOrder = {'HOCH': 1, 'MITTEL': 2, 'NIEDRIG': 3};
+            const assignments = Object.values(userSelections);
+            const sorted = assignments.sort((a, b) => priorityOrder[a.project.priority] - priorityOrder[b.project.priority]);
+
+            const today = new Date();
+            today.setDate(today.getDate() + 7);
+            
+            let employeeSchedules = {
+                'Max Müller': [],
+                'Lisa Schmidt': [],
+                'Tom Weber': []
+            };
+
+            // Find last completion date for each employee from existing schedule
+            calendarSchedule.forEach(item => {
+                if (!employeeSchedules[item.employeeName]) {
+                    employeeSchedules[item.employeeName] = [];
+                }
+                employeeSchedules[item.employeeName].push(item);
+            });
+
+            sorted.forEach(assignment => {
+                const employee = assignment.name;
+                const project = assignment.project;
+                
+                const employeeHours = {
+                    'Max Müller': 20,
+                    'Lisa Schmidt': 40,
+                    'Tom Weber': 30
+                };
+                
+                const hoursAvailable = employeeHours[employee];
+                const hoursNeeded = project.hours_needed || 40;
+                const weeksNeeded = Math.ceil(hoursNeeded / hoursAvailable);
+                
+                let startDate = new Date(today);
+                const lastProject = employeeSchedules[employee][employeeSchedules[employee].length - 1];
+                if (lastProject) {
+                    startDate = new Date(lastProject.endDate);
+                    startDate.setDate(startDate.getDate() + 1);
+                }
+                
+                const endDate = new Date(startDate);
+                endDate.setDate(endDate.getDate() + (weeksNeeded * 7) - 1);
+                
+                const schedule = {
+                    projectName: project.project_name,
+                    employeeName: employee,
+                    startDate: new Date(startDate),
+                    endDate: new Date(endDate),
+                    hoursPerWeek: hoursAvailable,
+                    totalHours: hoursNeeded,
+                    weeks: weeksNeeded,
+                    score: assignment.score,
+                    completed: false,
+                    description: `9:00-${9 + Math.floor(hoursAvailable / 5)}:00 • ${project.project_name}`
+                };
+                
+                calendarSchedule.push(schedule);
+                employeeSchedules[employee].push(schedule);
+            });
+        }
+
+        function displayCalendarPreview() {
+            const content = document.getElementById('calendar-preview-content');
+            
+            const newProjects = calendarSchedule.filter(item => !item.completed);
+            
+            // Create layout with calendar on top and list below
+            let html = `
+                <!-- Mini Calendar in Modal -->
+                <div class="mb-6 bg-white border border-gray-200 rounded-lg p-4">
+                    <div id="modal-calendar"></div>
+                </div>
+                
+                <!-- Project List -->
+                <div class="space-y-4">
+            `;
+
+            newProjects.forEach(proj => {
+                const start = proj.startDate.toLocaleDateString('de-DE', {day: '2-digit', month: 'short'});
+                const end = proj.endDate.toLocaleDateString('de-DE', {day: '2-digit', month: 'short'});
+                
+                html += `
+                    <div class="border border-gray-200 rounded-lg p-5 bg-gray-50">
+                        <div class="flex items-start justify-between mb-3">
+                            <div>
+                                <h4 class="font-semibold text-gray-900">${proj.projectName}</h4>
+                                <p class="text-sm text-gray-600 mt-1">${proj.employeeName}</p>
+                            </div>
+                            <span class="text-sm font-semibold text-gray-700">${proj.score}%</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <p class="text-gray-600">Zeitraum</p>
+                                <p class="font-medium text-gray-900">${start} - ${end} (${proj.weeks} Woche${proj.weeks > 1 ? 'n' : ''})</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-600">Aufwand</p>
+                                <p class="font-medium text-gray-900">${proj.hoursPerWeek}h/Woche (${proj.totalHours}h gesamt)</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            content.innerHTML = html;
+            
+            // Initialize mini calendar in modal
+            setTimeout(() => {
+                initializeModalCalendar();
+            }, 100);
+        }
+        
+        function initializeModalCalendar() {
+            const calendarEl = document.getElementById('modal-calendar');
+            
+            if (!calendarEl) return;
+            
+            // Convert calendarSchedule to FullCalendar events
+            const events = calendarSchedule.map(item => {
+                let eventClass = '';
+                if (item.employeeName === 'Max Müller') eventClass = 'event-max';
+                else if (item.employeeName === 'Lisa Schmidt') eventClass = 'event-lisa';
+                else if (item.employeeName === 'Tom Weber') eventClass = 'event-tom';
+                
+                // Clean project name
+                const cleanName = item.projectName.replace(' ✓', '');
+                
+                return {
+                    title: cleanName,
+                    start: item.startDate,
+                    end: item.endDate,
+                    className: eventClass,
+                    extendedProps: {
+                        employee: item.employeeName,
+                        hours: item.totalHours,
+                        completed: item.completed,
+                        description: item.description || 'Ganztägig'
+                    }
+                };
+            });
+            
+            // Initialize modal calendar
+            const modalCalendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                headerToolbar: {
+                    left: 'prev,next',
+                    center: 'title',
+                    right: ''
+                },
+                locale: 'de',
+                firstDay: 1,
+                events: events,
+                height: 'auto',
+                eventDisplay: 'block',
+                displayEventTime: false,
+                eventClick: function(info) {
+                    const props = info.event.extendedProps;
+                    const status = props.completed ? '✓ Abgeschlossen' : '⏳ Laufend';
+                    alert(`${info.event.title}\n\n${props.description}\n\nMitarbeiter: ${props.employee}\nStatus: ${status}\nAufwand: ${props.hours}h gesamt`);
+                }
+            });
+            
+            modalCalendar.render();
+        }
+
+        function closeCalendarModal() {
+            document.getElementById('calendar-modal').classList.add('hidden');
+            document.getElementById('selection-modal').classList.remove('hidden');
+        }
+
+        function updatePlanningRationale() {
+            const rationaleContainer = document.getElementById('planning-rationale');
+            if (!rationaleContainer) return;
+            
+            // Get new projects that were assigned
+            const newProjects = calendarSchedule.filter(item => !item.completed && item.score);
+            
+            if (newProjects.length === 0) {
+                rationaleContainer.innerHTML = '<p class="text-gray-500 italic">Führen Sie eine Optimierung durch, um die Planungs-Begründungen zu sehen.</p>';
+                return;
+            }
+            
+            // Generate intelligent rationale for each new project
+            let html = '';
+            
+            newProjects.forEach((project, index) => {
+                const reasons = [];
+                
+                // Skill match reason
+                if (project.score >= 90) {
+                    reasons.push(`<strong>Hohe Skill-Übereinstimmung (${project.score}%):</strong> ${project.employeeName} verfügt über die idealen Fähigkeiten für dieses Projekt.`);
+                } else if (project.score >= 80) {
+                    reasons.push(`<strong>Gute Skill-Passung (${project.score}%):</strong> ${project.employeeName} bringt die passenden Kompetenzen mit.`);
+                } else {
+                    reasons.push(`<strong>Akzeptable Skill-Passung (${project.score}%):</strong> ${project.employeeName} kann das Projekt erfolgreich umsetzen.`);
+                }
+                
+                // Availability reason
+                const employeeWorkload = calendarSchedule.filter(p => 
+                    p.employeeName === project.employeeName && 
+                    !p.completed &&
+                    p.startDate <= project.endDate &&
+                    p.endDate >= project.startDate
+                ).length;
+                
+                if (employeeWorkload <= 2) {
+                    reasons.push(`<strong>Optimale Verfügbarkeit:</strong> ${project.employeeName} hat aktuell Kapazität und kann sich auf dieses Projekt konzentrieren.`);
+                } else {
+                    reasons.push(`<strong>Terminliche Einplanung:</strong> Das Projekt wurde zwischen bestehenden Verpflichtungen eingeplant, um Überlastung zu vermeiden.`);
+                }
+                
+                // Timeline reason
+                const startDate = project.startDate.toLocaleDateString('de-DE', {day: '2-digit', month: 'long'});
+                const endDate = project.endDate.toLocaleDateString('de-DE', {day: '2-digit', month: 'long'});
+                reasons.push(`<strong>Zeitrahmen ${startDate} - ${endDate}:</strong> Dieser Zeitraum berücksichtigt andere laufende Projekte und maximiert die Effizienz.`);
+                
+                html += `
+                    <div class="pb-4 ${index < newProjects.length - 1 ? 'border-b border-gray-200' : ''}">
+                        <h4 class="font-semibold text-gray-900 mb-2">${project.projectName}</h4>
+                        <div class="space-y-2">
+                            ${reasons.map(r => `<p class="text-sm leading-relaxed">${r}</p>`).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            rationaleContainer.innerHTML = html;
+        }
+
+        function updateOptimizationInsights() {
+            const insightsPanel = document.getElementById('optimization-insights');
+            const insightsContent = document.getElementById('insights-content');
+            
+            if (!insightsPanel || !insightsContent) return;
+            
+            // Show the panel
+            insightsPanel.classList.remove('hidden');
+            
+            const newProjects = calendarSchedule.filter(item => !item.completed && item.score);
+            
+            if (newProjects.length === 0) return;
+            
+            // Calculate insights
+            const totalHours = newProjects.reduce((sum, p) => sum + p.totalHours, 0);
+            const avgWeeks = Math.round(newProjects.reduce((sum, p) => sum + p.weeks, 0) / newProjects.length * 10) / 10;
+            const earliestStart = new Date(Math.min(...newProjects.map(p => p.startDate)));
+            const latestEnd = new Date(Math.max(...newProjects.map(p => p.endDate)));
+            const totalDuration = Math.ceil((latestEnd - earliestStart) / (1000 * 60 * 60 * 24));
+            
+            // Count projects per employee
+            const projectCounts = {};
+            newProjects.forEach(p => {
+                projectCounts[p.employeeName] = (projectCounts[p.employeeName] || 0) + 1;
+            });
+            const mostBusy = Object.entries(projectCounts).sort((a, b) => b[1] - a[1])[0];
+            
+            // Find highest match
+            const highestMatch = Math.max(...newProjects.map(p => p.score));
+            const bestProject = newProjects.find(p => p.score === highestMatch);
+            
+            const insights = [
+                {
+                    icon: '⏱️',
+                    title: 'Durchschnittliche Projektdauer',
+                    value: `${avgWeeks} Wochen`,
+                    description: 'Pro zugewiesenem Projekt'
+                },
+                {
+                    icon: '📊',
+                    title: 'Gesamt-Arbeitsaufwand',
+                    value: `${totalHours}h`,
+                    description: `Verteilt über ${totalDuration} Tage`
+                },
+                {
+                    icon: '👤',
+                    title: 'Höchste Auslastung',
+                    value: mostBusy[0].split(' ')[0],
+                    description: `${mostBusy[1]} neue Projekt${mostBusy[1] > 1 ? 'e' : ''} zugeteilt`
+                },
+                {
+                    icon: '⭐',
+                    title: 'Beste Übereinstimmung',
+                    value: `${highestMatch}%`,
+                    description: `${bestProject.employeeName} → ${bestProject.projectName}`
+                },
+                {
+                    icon: '📅',
+                    title: 'Zeitspanne',
+                    value: `${totalDuration} Tage`,
+                    description: `${earliestStart.toLocaleDateString('de-DE', {day: '2-digit', month: 'short'})} - ${latestEnd.toLocaleDateString('de-DE', {day: '2-digit', month: 'short'})}`
+                },
+                {
+                    icon: '✅',
+                    title: 'Erfolgswahrscheinlichkeit',
+                    value: `${Math.round(newProjects.reduce((sum, p) => sum + p.score, 0) / newProjects.length)}%`,
+                    description: 'Basierend auf Skill-Matches'
+                }
+            ];
+            
+            insightsContent.innerHTML = insights.map(insight => `
+                <div class="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-start gap-3">
+                        <div class="text-2xl">${insight.icon}</div>
+                        <div class="flex-1">
+                            <p class="text-xs text-gray-600 mb-1">${insight.title}</p>
+                            <p class="text-xl font-semibold text-gray-900 mb-1">${insight.value}</p>
+                            <p class="text-xs text-gray-500">${insight.description}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function confirmCalendar() {
+            document.getElementById('calendar-modal').classList.add('hidden');
+            
+            displayAssignedProjects();
+            displayProjectsList(optimizationResults, true);
+            initializeCalendar();
+            updateKPIs();
+            updatePlanningRationale();
+            updateOptimizationInsights();
+            
+            const btn = document.getElementById('optimize-btn-main');
+            btn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Optimierung abgeschlossen';
+            btn.classList.remove('bg-gray-900');
+            btn.classList.add('bg-green-600');
+            btn.disabled = true;
+        }
+
+        function displayAssignedProjects() {
+            const container = document.getElementById('active-projects-list');
+            container.innerHTML = '';
+
+            optimizationResults.forEach((result, index) => {
+                const assignment = userSelections[index];
+                
+                // Find the project in calendar schedule to get completion date
+                const scheduleItem = calendarSchedule.find(item => 
+                    item.projectName === result.project_name && 
+                    item.employeeName === assignment.name
+                );
+                
+                let completionInfo = '';
+                let insights = [];
+                
+                if (scheduleItem) {
+                    const completionDate = scheduleItem.endDate.toLocaleDateString('de-DE', {
+                        day: '2-digit',
+                        month: 'long',
+                        year: 'numeric'
+                    });
+                    completionInfo = `<p class="text-xs text-green-600 font-medium mt-1">✓ Fertigstellung: ${completionDate}</p>`;
+                    
+                    // Generate insights
+                    const daysUntilCompletion = Math.ceil((scheduleItem.endDate - new Date()) / (1000 * 60 * 60 * 24));
+                    
+                    if (daysUntilCompletion > 0) {
+                        insights.push(`In ${daysUntilCompletion} Tagen abgeschlossen`);
+                    }
+                    
+                    if (assignment.score >= 90) {
+                        insights.push('Ideale Skill-Übereinstimmung');
+                    }
+                    
+                    // Check workload
+                    const employeeProjects = calendarSchedule.filter(p => 
+                        p.employeeName === assignment.name && 
+                        !p.completed &&
+                        p.startDate <= scheduleItem.endDate &&
+                        p.endDate >= scheduleItem.startDate
+                    ).length;
+                    
+                    if (employeeProjects <= 2) {
+                        insights.push('Optimale Auslastung');
+                    }
+                }
+
+                const projectCard = `
+                    <div class="bg-white border border-gray-200 rounded-lg p-5">
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="flex-1">
+                                <h4 class="font-medium text-gray-900">${result.project_name}</h4>
+                                <p class="text-sm text-gray-500 mt-1">${result.hours_needed || 'N/A'}h Projekt • ${result.priority} Priorität</p>
+                                ${completionInfo}
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded border border-gray-200 mb-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-700">
+                                    ${assignment.name.split(' ').map(n => n[0]).join('')}
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-900">${assignment.name}</p>
+                                    <p class="text-xs text-gray-500">Zugewiesen</p>
+                                </div>
+                            </div>
+                            <span class="text-lg font-semibold text-gray-900">${assignment.score}%</span>
+                        </div>
+                        ${insights.length > 0 ? `
+                            <div class="flex flex-wrap gap-2">
+                                ${insights.map(insight => `
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                                        ${insight}
+                                    </span>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+                
+                container.innerHTML += projectCard;
+            });
+        }
+
+        let calendar; // Global calendar instance
+        
+        function initializeCalendar() {
+            const calendarEl = document.getElementById('calendar');
+            
+            if (!calendarEl) return;
+            
+            // Convert calendarSchedule to FullCalendar events
+            const events = calendarSchedule.map(item => {
+                let eventClass = '';
+                if (item.employeeName === 'Max Müller') eventClass = 'event-max';
+                else if (item.employeeName === 'Lisa Schmidt') eventClass = 'event-lisa';
+                else if (item.employeeName === 'Tom Weber') eventClass = 'event-tom';
+                
+                // Clean project name (remove ✓ if present)
+                const cleanName = item.projectName.replace(' ✓', '');
+                
+                return {
+                    title: cleanName,
+                    start: item.startDate,
+                    end: item.endDate,
+                    className: eventClass,
+                    extendedProps: {
+                        employee: item.employeeName,
+                        hours: item.totalHours,
+                        hoursPerWeek: item.hoursPerWeek,
+                        completed: item.completed,
+                        description: item.description || 'Ganztägig'
+                    }
+                };
+            });
+            
+            // Destroy existing calendar if it exists
+            if (calendar) {
+                calendar.destroy();
+            }
+            
+            // Initialize FullCalendar
+            calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                },
+                buttonText: {
+                    today: 'Heute',
+                    month: 'Monat',
+                    week: 'Woche',
+                    day: 'Tag'
+                },
+                locale: 'de',
+                firstDay: 1, // Start week on Monday
+                events: events,
+                eventClick: function(info) {
+                    const props = info.event.extendedProps;
+                    const status = props.completed ? '✓ Abgeschlossen' : '⏳ Laufend';
+                    alert(`${info.event.title}\n\n${props.description}\n\nMitarbeiter: ${props.employee}\nStatus: ${status}\nAufwand: ${props.hours}h gesamt (${props.hoursPerWeek}h/Woche)`);
+                },
+                height: 'auto',
+                eventDisplay: 'block',
+                displayEventTime: false
+            });
+            
+            calendar.render();
+        }
+
+        function getWeekNumber(date) {
+            const d = new Date(date);
+            d.setHours(0, 0, 0, 0);
+            d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+            const yearStart = new Date(d.getFullYear(), 0, 1);
+            return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        }
+
+        function updateKPIs() {
+            let newSavings = 0;
+            let newTime = 0;
+            let totalMatchScore = 0;
+            
+            Object.values(userSelections).forEach(assignment => {
+                const projectHours = assignment.project.hours_needed || 40;
+                const savings = Math.round(projectHours * 30 * 0.3);
+                newSavings += savings;
+                newTime += Math.round(projectHours * 0.3);
+                totalMatchScore += assignment.score;
+            });
+            
+            totalSavings += newSavings;
+            totalTime += newTime;
+            optimizedProjects = Object.keys(userSelections).length;
+            
+            const totalProjects = 3 + optimizedProjects;
+            const totalScore = (89 * 3) + totalMatchScore;
+            avgMatchScore = Math.round(totalScore / totalProjects);
+            
+            animateValue('kpi-savings', 6000, totalSavings, 1500);
+            animateValue('kpi-time', 32, totalTime, 1500);
+            animateValue('kpi-score', 89, avgMatchScore, 1500);
+        }
+
+        function animateValue(id, start, end, duration) {
+            const element = document.getElementById(id);
+            const range = end - start;
+            const increment = range / (duration / 16);
+            let current = start;
+            
+            const timer = setInterval(() => {
+                current += increment;
+                if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
+                    current = end;
+                    clearInterval(timer);
+                }
+                
+                if (id === 'kpi-savings') {
+                    element.textContent = Math.round(current).toLocaleString('de-DE') + '€';
+                } else if (id === 'kpi-time') {
+                    element.textContent = Math.round(current) + 'h';
+                } else if (id === 'kpi-score') {
+                    element.textContent = Math.round(current) + '%';
+                }
+            }, 16);
+        }
+    </script>
+
+</body>
+</html>
